@@ -14,14 +14,31 @@ dependencies = [
     "alembic>=1.18.5",
     "pydantic-settings>=2.14.2",
     "pyjwt>=2.9",
+    # Registry-decoupling (organize-me#219): app/core/registry.py's background refresh loop
+    # constructs an httpx.AsyncClient directly - a genuine runtime dependency, not just a test
+    # transport, so it belongs here rather than only in the dev group (previously relied on
+    # organizeme-chrome's own transitive httpx dependency, which is fragile).
+    "httpx>=0.27",
+    # build_default_token_provider() calls google.auth.transport.requests to mint the OIDC
+    # identity token for the registry fetch; that transport module hard-imports `requests` and
+    # raises ImportError if it's missing, which organizeme-chrome's own google-auth dependency
+    # does not pull in transitively. Without this, every registry refresh silently fails forever
+    # and the sidebar is stuck on the self-only cold-start default - doc-library and
+    # event-creator both declare this pin for the same reason.
+    "requests>=2.32",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
-    "httpx>=0.27",
     "mypy>=1.13",
+]
+# Build-only: the standalone Tailwind CLI binary (~35-40MB) + this package. Installed in the
+# Docker build stage only (`uv sync --group build`) and never in the runtime stage
+# (`uv sync --no-dev` excludes every non-default group) - see Dockerfile.
+build = [
+    "pytailwindcss==0.3.1",
 ]
 
 [tool.mypy]

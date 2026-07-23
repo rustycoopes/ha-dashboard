@@ -48,7 +48,23 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --frozen --group dev
+        run: uv sync --frozen --group dev --group build
+
+      - name: Build Tailwind CSS
+        run: uv run python scripts/build_css.py
+
+      - name: Verify compiled CSS is non-empty and contains the canary utility class
+        run: uv run python scripts/verify_css_build.py
+
+      # ha-dashboard has no QA/shared Supabase tier (see organize-me's
+      # docs/adr/ha-dashboard-no-qa-environment.md), so unlike doc-library/event-creator's CI,
+      # this throwaway Postgres has no host.users table for the Alembic migration below to grant
+      # REFERENCES on (0002_grant_host_users_references.py) or for create_host_user() (tests/
+      # conftest.py) to insert into. Bootstrapped here as a stand-in for what organize-me's own
+      # migrations already provide against the real shared database - see
+      # scripts/ci/bootstrap_host_users.sql (shared with deploy.yml's identical smoke-test step).
+      - name: Bootstrap host.users (CI-only stand-in for the shared host schema)
+        run: psql "$DATABASE_URL" -f scripts/ci/bootstrap_host_users.sql
 
       - name: Run Alembic migrations (throwaway CI Postgres, ha_dashboard schema)
         run: uv run alembic upgrade head
