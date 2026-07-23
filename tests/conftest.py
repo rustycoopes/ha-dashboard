@@ -17,10 +17,11 @@ JWT_SECRET = "test-jwt-secret"
 @pytest.fixture(autouse=True)
 def _env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("JWT_SECRET", JWT_SECRET)
-    # Real value only if the environment already provides one (CI sets this to the Supabase QA
-    # URL — see .github/workflows/ci.yml); tests that never touch the DB (test_health.py) work
-    # fine with this placeholder, but anything using the db_session fixture below needs a real,
-    # reachable Postgres.
+    # Real value only if the environment already provides one (CI sets this to a throwaway
+    # Postgres service container - ha-dashboard has no QA Supabase tier, see
+    # .github/workflows/ci.yml and docs/adr/ha-dashboard-no-qa-environment.md in organize-me);
+    # tests that never touch the DB (test_health.py) work fine with this placeholder, but anything
+    # using the db_session fixture below needs a real, reachable Postgres.
     import os
 
     monkeypatch.setenv(

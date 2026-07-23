@@ -12,11 +12,34 @@ env:
   IMAGE_NAME: app
 
 jobs:
-  test:
+  # ha-dashboard has no QA Cloud Run tier (organize-me's
+  # docs/adr/ha-dashboard-no-qa-environment.md) - this job is the pipeline's only pre-production
+  # gate, replacing the role a QA deploy would otherwise play for every other hosted app. It must
+  # actually fail (not just warn) on a broken migration or a Dockerfile that doesn't boot: default
+  # GitHub Actions shell semantics (bash -eo pipefail) already fail the step - and therefore the
+  # job, and therefore deploy-prod via `needs:` below - the moment any command here returns
+  # non-zero, so no extra error-handling is required beyond letting real failures surface.
+  smoke-test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ha_dashboard_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
-      DATABASE_URL: ${{ secrets.SUPABASE_PROD_URL }}
-      JWT_SECRET: ${{ secrets.JWT_SECRET_PROD }}
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ha_dashboard_ci
+      # Only a pydantic-settings required-field placeholder - the migration and the health route
+      # never read its value. See migrations/env.py / app/core/config.py.
+      JWT_SECRET: ci-placeholder-unused
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,21 +57,72 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen --group dev
 
-      - name: Run Alembic migrations (Supabase prod, ha_dashboard schema)
+      - name: Run Alembic migrations against throwaway Postgres
         run: uv run alembic upgrade head
 
-      - name: Run pytest
-        run: uv run pytest
+      - name: Build production image
+        run: docker build -t ha-dashboard-smoke:${{ github.sha }} .
 
-      - name: Run mypy
-        run: uv run mypy app tests
+      # --network=host puts the container on the runner's own network namespace, so it reaches
+      # the postgres service container (mapped to the runner's localhost:5432) directly, and its
+      # own :8080 is directly curl-able below without a separate port-publish/network step.
+      - name: Boot the built image against the throwaway database
+        run: |
+          docker run -d --name ha-dashboard-smoke --network=host \
+            -e DATABASE_URL="${DATABASE_URL}" \
+            -e JWT_SECRET="${JWT_SECRET}" \
+            ha-dashboard-smoke:${{ github.sha }}
+
+      - name: Hit the health check
+        run: |
+          for attempt in $(seq 1 15); do
+            if curl -sf http://localhost:8080/health; then
+              echo "Health check succeeded on attempt $attempt"
+              exit 0
+            fi
+            echo "Attempt $attempt: not ready yet, retrying..."
+            sleep 2
+          done
+          echo "Health check never succeeded - smoke test failed"
+          exit 1
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs ha-dashboard-smoke || true
+
+      - name: Stop container
+        if: always()
+        run: docker rm -f ha-dashboard-smoke || true
 
   deploy-prod:
-    needs: test
+    needs: smoke-test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen --group dev
+
+      # Only a pydantic-settings required-field placeholder, same as the smoke-test job - the
+      # migration itself never reads JWT_SECRET's value, and this repo has no JWT_SECRET_PROD
+      # GitHub secret (see the issue's acceptance criteria: only GCP_SA_KEY/SUPABASE_PROD_URL are
+      # required here).
+      - name: Run Alembic migrations (Supabase prod, ha_dashboard schema)
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_PROD_URL }}
+          JWT_SECRET: ci-placeholder-unused
+        run: uv run alembic upgrade head
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
@@ -61,6 +135,11 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
 
+      # JWT_SECRET is intentionally absent here - wired below via --set-secrets from GCP Secret
+      # Manager (`jwt-secret-prod`, the same value the Host and every other hosted app read).
+      # ENCRYPTION_KEY isn't wired yet either: no app code reads it until a later slice adds one
+      # (this app's shared-SA secretAccessor grant on encryption-key-prod is already confirmed -
+      # see docs/features/ha-dashboard/WBS/slice-1-repo-and-infra-setup.md's Delivered section).
       - name: Write Cloud Run env vars file
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_PROD_URL }}
@@ -83,7 +162,7 @@ jobs:
 
       - name: Deploy to Cloud Run Prod
         # Platform default: request-based billing. Never add --no-cpu-throttling or
-        # --min-instances here — see docs/adr/0001-event-creator-worker-cpu-throttling.md.
+        # --min-instances here — see organize-me's docs/adr/0001-event-creator-worker-cpu-throttling.md.
         run: |
           gcloud run deploy ha-dashboard-prod \
             --image=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
@@ -93,3 +172,12 @@ jobs:
             --set-secrets=JWT_SECRET=jwt-secret-prod:latest \
             --allow-unauthenticated \
             --quiet
+
+      - name: Verify health check on the deployed service
+        run: |
+          SERVICE_URL=$(gcloud run services describe ha-dashboard-prod \
+            --region=${{ env.GCP_REGION }} \
+            --project=${{ env.GCP_PROJECT_ID }} \
+            --format='value(status.url)')
+          echo "Checking $SERVICE_URL/health"
+          curl -sf "$SERVICE_URL/health"
