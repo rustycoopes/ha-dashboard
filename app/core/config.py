@@ -7,8 +7,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env.local", extra="ignore")
 
     database_url: str
-    # Same signing key as the Host (Secret Manager secret `jwt-secret-qa`/`jwt-secret-prod`) —
-    # this service verifies the Host-issued JWT, it never issues one of its own.
+    # Same signing key as the Host (Secret Manager secret `jwt-secret-prod` - no QA tier, see
+    # docs/adr/ha-dashboard-no-qa-environment.md in organize-me) — this service verifies the
+    # Host-issued JWT, it never issues one of its own.
     jwt_secret: str
     # Base URL used to build any absolute links this service needs to construct. Override to
     # http://localhost:8000 in local dev.

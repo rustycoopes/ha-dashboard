@@ -17,10 +17,11 @@ JWT_SECRET = "test-jwt-secret"
 @pytest.fixture(autouse=True)
 def _env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("JWT_SECRET", JWT_SECRET)
-    # Real value only if the environment already provides one (CI sets this to the Supabase QA
-    # URL — see .github/workflows/ci.yml); tests that never touch the DB (test_health.py) work
-    # fine with this placeholder, but anything using the db_session fixture below needs a real,
-    # reachable Postgres.
+    # Real value only if the environment already provides one (CI sets this to a throwaway
+    # Postgres service container - ha-dashboard has no QA Supabase tier, see
+    # .github/workflows/ci.yml and docs/adr/ha-dashboard-no-qa-environment.md in organize-me);
+    # tests that never touch the DB (test_health.py) work fine with this placeholder, but anything
+    # using the db_session fixture below needs a real, reachable Postgres.
     import os
 
     monkeypatch.setenv(
@@ -80,9 +81,10 @@ class TokenFactory:
 async def db_session() -> AsyncIterator[AsyncSession]:
     """A DB session whose writes are rolled back at teardown (mirrors organize-me's own fixture).
 
-    Requires a real, reachable DATABASE_URL (the Supabase QA database in CI — see
-    .github/workflows/ci.yml) — there is no local Docker Postgres in this project's dev
-    convention. Builds its own dedicated engine per test (rather than reusing
+    Requires a real, reachable DATABASE_URL (a throwaway Postgres service container in CI — see
+    .github/workflows/ci.yml; ha-dashboard has no QA Supabase tier) — there is no local Docker
+    Postgres in this project's dev convention. Builds its own dedicated engine per test (rather
+    than reusing
     app.db.session's process-wide singleton) because asyncpg connections are bound to the event
     loop that created them, and pytest-asyncio gives each test function its own loop by default.
     """
