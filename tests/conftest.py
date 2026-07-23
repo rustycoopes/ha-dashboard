@@ -1,7 +1,7 @@
 import json
 import time
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 
 import jwt
 import pytest
@@ -11,7 +11,27 @@ from organizeme_chrome.jwt_verify import ALGORITHM, TOKEN_AUDIENCE
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.core.registry import configure_client_registry_source
+
 JWT_SECRET = "test-jwt-secret"
+
+# Registry-decoupling Slice 3 (organize-me#220) deleted organizeme_chrome's compiled-in fallback
+# that page-render tests here (test_ha_dashboard_page.py) used to read implicitly. Some app
+# modules (app.core.templating) call organizeme_chrome.registry.get_app() at *import* time,
+# before any pytest fixture can run - this repo's `client` fixture below uses a plain
+# ASGITransport, which never runs app.main's `lifespan` (the thing that normally calls this in
+# production), so it must be configured here, at conftest.py's own module-import time, which
+# happens before pytest collects (and thus imports) any test module in this directory.
+configure_client_registry_source()
+
+
+@pytest.fixture(autouse=True)
+def _reconfigure_registry_source_between_tests() -> Iterator[None]:
+    # Any future test that calls configure_client_registry_source() to install its own
+    # FetchedRegistrySource (mirroring doc-library's test_registry_client_wiring.py) should not
+    # leak a mutated/updated cache into whichever test runs next.
+    yield
+    configure_client_registry_source()
 
 
 @pytest.fixture(autouse=True)
