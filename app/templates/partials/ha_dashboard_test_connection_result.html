@@ -1,0 +1,19 @@
+{#
+  Inline Test Connection result (Slice 3), swapped into #test-connection-result by
+  POST /settings/ha-dashboard/ha-dashboard/test-connection. Persists nothing - a fresh Test
+  Connection or a real Save always re-validates from scratch (settings_fragments.py's
+  module docstring).
+
+  outcome is one of "success" / "auth_failure" / "generic_failure" / "invalid" (blank
+  host/token submitted) - see app.pages.settings_fragments._run_test.
+#}
+{% from "components/alert.html" import alert %}
+{% if outcome == "success" %}
+{{ alert("Connected successfully.", variant="success") }}
+{% elif outcome == "auth_failure" %}
+{{ alert("Home Assistant rejected the token.", variant="danger") }}
+{% elif outcome == "invalid" %}
+{{ alert("Host and token are required.", variant="danger") }}
+{% else %}
+{{ alert("Could not connect to Home Assistant. Check the host URL and try again.", variant="danger") }}
+{% endif %}

@@ -14,6 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.registry import configure_client_registry_source
 
 JWT_SECRET = "test-jwt-secret"
+# A fixed, throwaway Fernet key (cryptography.fernet.Fernet.generate_key()'s output shape) rather
+# than one generated fresh per test run - encrypt/decrypt round-trips in tests don't depend on the
+# key's value, and a fixed key keeps failures reproducible.
+ENCRYPTION_KEY = "htM4ROOjmFzKOsPxeWRyJy9HifMSu51xGEVLSdsEJDU="
 
 # Registry-decoupling Slice 3 (organize-me#220) deleted organizeme_chrome's compiled-in fallback
 # that page-render tests here (test_ha_dashboard_page.py) used to read implicitly. Some app
@@ -37,6 +41,7 @@ def _reconfigure_registry_source_between_tests() -> Iterator[None]:
 @pytest.fixture(autouse=True)
 def _env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("JWT_SECRET", JWT_SECRET)
+    monkeypatch.setenv("ENCRYPTION_KEY", ENCRYPTION_KEY)
     # Real value only if the environment already provides one (CI sets this to a throwaway
     # Postgres service container - ha-dashboard has no QA Supabase tier, see
     # .github/workflows/ci.yml and docs/adr/ha-dashboard-no-qa-environment.md in organize-me);

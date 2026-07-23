@@ -226,11 +226,13 @@ jobs:
             --format='value(status.url)')
           echo "url=${HOST_URL}" >> "$GITHUB_OUTPUT"
 
-      # JWT_SECRET is intentionally absent here - wired below via --set-secrets from GCP Secret
-      # Manager (`jwt-secret-prod`, the same value the Host and every other hosted app read).
-      # ENCRYPTION_KEY isn't wired yet either: no app code reads it until a later slice adds one
-      # (this app's shared-SA secretAccessor grant on encryption-key-prod is already confirmed -
-      # see docs/features/ha-dashboard/WBS/slice-1-repo-and-infra-setup.md's Delivered section).
+      # JWT_SECRET/ENCRYPTION_KEY are intentionally absent here - wired below via --set-secrets
+      # from GCP Secret Manager (`jwt-secret-prod`, the same value the Host and every other hosted
+      # app read; `encryption-key-prod`, the platform's existing shared secret - Slice 3 is the
+      # first slice whose app code actually reads it, via app.core.security.CredentialCipher).
+      # This app's shared-SA secretAccessor grant on encryption-key-prod was already confirmed in
+      # Slice 1 - see docs/features/ha-dashboard/WBS/slice-1-repo-and-infra-setup.md's Delivered
+      # section.
       - name: Write Cloud Run env vars file
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_PROD_URL }}
@@ -262,7 +264,7 @@ jobs:
             --region=${{ env.GCP_REGION }} \
             --project=${{ env.GCP_PROJECT_ID }} \
             --env-vars-file=/tmp/cloud-run-env.yaml \
-            --set-secrets=JWT_SECRET=jwt-secret-prod:latest \
+            --set-secrets=JWT_SECRET=jwt-secret-prod:latest,ENCRYPTION_KEY=encryption-key-prod:latest \
             --allow-unauthenticated \
             --quiet
 

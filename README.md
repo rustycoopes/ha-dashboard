@@ -12,9 +12,9 @@ uv sync --group dev
 ```
 
 Copy `.env.local.example` to `.env.local` (never commit `.env.local` — see `.gitignore`) and fill
-in `DATABASE_URL`/`JWT_SECRET`. ha-dashboard has no QA Supabase tier (see
-`docs/adr/ha-dashboard-no-qa-environment.md` in the organize-me repo) — point `DATABASE_URL` at
-your own local Postgres instance for local development.
+in `DATABASE_URL`/`JWT_SECRET`/`ENCRYPTION_KEY`. ha-dashboard has no QA Supabase tier (see
+`docs/adr/ha-dashboard-no-qa-environment.md`) — point `DATABASE_URL` at your own local Postgres
+instance for local development.
 
 ## Running locally
 
@@ -48,7 +48,7 @@ uv run alembic upgrade head
 ## Deployment
 
 Unlike every other hosted app on the platform, ha-dashboard has **no QA Cloud Run tier** — see
-`docs/adr/ha-dashboard-no-qa-environment.md` (organize-me repo) for why. In its place:
+`docs/adr/ha-dashboard-no-qa-environment.md` for why. In its place:
 
 - `.github/workflows/ci.yml` (on PR): runs pytest/mypy/Alembic against a throwaway Postgres
   service container local to the CI job — nothing is deployed.
