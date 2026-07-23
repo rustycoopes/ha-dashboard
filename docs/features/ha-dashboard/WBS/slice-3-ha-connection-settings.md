@@ -128,9 +128,10 @@ the real instance rather than research alone.
    `app/templates/settings.html` only ever fetched `event-creator`'s tab fragments
    (`/settings/event-creator/{tab.id}`) — there was no code path that would ever reach this
    slice's own Settings tab even though the registry already listed it (Slice 2, `organize-me`
-   PR #248). Fixed in `organize-me` (branch `fix/settings-shell-multi-app-tabs`, see that repo's
-   own PR) to aggregate `settings_tabs` across every registered app and fetch each tab from its
-   owning `service_name`, not a single hardcoded one. Without this fix, acceptance criteria 1 and 7
+   PR #248). Fixed in `organize-me` (branch `fix/settings-shell-multi-app-tabs`,
+   [PR #249](https://github.com/rustycoopes/organize-me/pull/249)) to aggregate `settings_tabs`
+   across every registered app and fetch each tab from its owning `service_name`, not a single
+   hardcoded one. Without this fix, acceptance criteria 1 and 7
    (the Settings tab being reachable and correctly per-user through the real platform UI) would
    only have been verifiable by curling this repo's routes directly, never through the actual
    product.
