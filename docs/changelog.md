@@ -15,3 +15,4 @@
 ## [Unreleased]
 
 ### Added
+- 2026-07-23 — #1 Slice 1: Repo & infra setup — [details](features/ha-dashboard/WBS/slice-1-repo-and-infra-setup.md)

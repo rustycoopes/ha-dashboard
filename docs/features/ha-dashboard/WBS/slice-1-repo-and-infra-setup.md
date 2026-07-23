@@ -53,18 +53,18 @@ None — can start immediately.
 
 ## Acceptance criteria
 
-- [ ] `ha-dashboard` repo exists with a working CI/CD pipeline (build, test, smoke-test, deploy
+- [x] `ha-dashboard` repo exists with a working CI/CD pipeline (build, test, smoke-test, deploy
       stages all green).
-- [ ] The CI smoke-test job fails the pipeline (doesn't just warn) on a deliberately broken
+- [x] The CI smoke-test job fails the pipeline (doesn't just warn) on a deliberately broken
       migration or a Dockerfile that fails to boot — verified once by intentionally breaking one
       and confirming the pipeline goes red.
-- [ ] A deploy of the skeleton app succeeds and the health-check route responds at
+- [x] A deploy of the skeleton app succeeds and the health-check route responds at
       `ha-dashboard-prod`'s Cloud Run `*.run.app` URL.
-- [ ] `GCP_SA_KEY` and `SUPABASE_PROD_URL` are set as GitHub Actions secrets in the new repo (not
+- [x] `GCP_SA_KEY` and `SUPABASE_PROD_URL` are set as GitHub Actions secrets in the new repo (not
       inherited from the Host repo). No `SUPABASE_QA_URL` is present.
-- [ ] `ha_dashboard` Postgres schema exists with its own independent Alembic history
+- [x] `ha_dashboard` Postgres schema exists with its own independent Alembic history
       (`version_table_schema=ha_dashboard`), verified by running an empty migration successfully.
-- [ ] The shared deploy SA's `secretmanager.secretAccessor` role on `jwt-secret-prod` and
+- [x] The shared deploy SA's `secretmanager.secretAccessor` role on `jwt-secret-prod` and
       `encryption-key-prod` is confirmed (not assumed) before the first real deploy.
 
 ## Testing
@@ -77,3 +77,57 @@ No unit or HTTP-level tests are meaningful yet since there's no feature code —
 slice needs.
 
 <!-- /to-implementation appends a "## Delivered" section here once this slice ships. -->
+
+## Delivered (2026-07-23, issue #1, branch `feature/slice-1-repo-and-infra-setup`)
+
+The `/new-hosted-app` scaffold had already landed the repo skeleton directly on `main` (commit
+`2f74536`) before this issue's `/to-implementation` pass started, but it copied
+`event-creator`'s/`doc-library`'s standard QA+prod CI/CD template verbatim — which doesn't fit
+this app's deliberate no-QA architecture, and left the pipeline unable to run at all. This
+slice's work was fixing that scaffold, not building fresh:
+
+- Added the missing `uv.lock` — the scaffold commit omitted it, breaking `uv sync --frozen` in
+  every CI run before it reached any real step (this is what run #30007825550 hit).
+- Rewrote `ci.yml` (single `test` job against a throwaway Postgres service container, no QA
+  deploy — there's nothing to deploy to pre-merge) and `deploy.yml` (added a `smoke-test` job that
+  builds the real production image, runs it against a fresh throwaway Postgres, applies the
+  Alembic migration, and hits the health check; `deploy-prod` now depends on it via `needs:`).
+- Added `migrations/versions/0001_create_ha_dashboard_schema.py`: creates the `ha_dashboard`
+  schema and an `ha_dashboard_app` role, mirroring `doc_library`'s own baseline
+  (`0001_create_doc_library_schema.py`) minus the `host.users` REFERENCES grant — no cross-schema
+  FK exists yet, and a throwaway CI Postgres has no `host` schema to reference anyway.
+- **Diverged from plan / hit a real bug not anticipated in the WBS** — the same chicken-and-egg
+  problem `doc-library`'s Slice 1 hit: Alembic creates its own version table in
+  `version_table_schema` *before* running the first migration, so on a database that's never seen
+  this app before, `alembic upgrade head` failed with `InvalidSchemaNameError: schema
+  "ha_dashboard" does not exist` even though migration 0001 itself creates that schema. First fix
+  attempt (a bare `connection.execute("CREATE SCHEMA IF NOT EXISTS ...")` inside
+  `do_run_migrations`) introduced a second, more serious bug caught by code review before merge:
+  leaving the connection mid-transaction flips Alembic's `_in_external_transaction` check to
+  `True`, so Alembic assumes the caller owns the transaction and never commits anything itself —
+  silently rolling back the schema, the role/grants, and the `alembic_version` row on every
+  `alembic upgrade head` run, while the command still exited 0. Fixed by moving the bootstrap plus
+  an explicit `await connection.commit()` into `run_async_migrations`, matching `doc-library`'s
+  own identical fix exactly. Added an explicit post-migration persistence check (queries
+  `ha_dashboard.alembic_version` directly) to every migration step in both workflows as
+  defense-in-depth, since nothing else in the pipeline (no tables yet, `/health` never touches the
+  DB) would otherwise have noticed a migration that silently no-ops.
+- Restored `pytest`/`mypy` to `deploy.yml`'s `smoke-test` job (an earlier draft had dropped them,
+  leaving only the Alembic/Docker/health-check checks) and added a short retry loop to
+  `deploy-prod`'s final health check for parity with `smoke-test`'s.
+- Confirmed manually (read-only/one-time infra checks, not part of the code diff): the shared
+  deploy SA already has `secretmanager.secretAccessor` on `jwt-secret-prod` and
+  `encryption-key-prod`; created the `ha-dashboard` Artifact Registry Docker repo (vulnerability
+  scanning disabled), which didn't exist yet and is required before `deploy-prod`'s `docker push`
+  can succeed; removed two stray GitHub secrets (`SUPABASE_QA_URL`, `ENCRYPTION_KEY`) that had
+  been set alongside the two required ones, restoring the exact secret set the acceptance
+  criteria call for.
+- Also fixed several scaffold-copy artifacts unrelated to CI/CD but caught along the way: a
+  missing `.env.local.example`, a missing `docs/changelog.md` (both referenced by
+  `CLAUDE.md`/`README.md` but never created), and stale QA-tier/broken-doc-link references in
+  `CLAUDE.md`, `README.md`, `app/core/config.py`, and `tests/conftest.py` left over from the
+  scaffold's copy of another repo's docs.
+- First-ever deploy of `ha-dashboard-prod` succeeded end to end: `smoke-test` and `deploy-prod`
+  both green, the real migration against Supabase prod persisted at revision
+  `0001_create_ha_dashboard_schema`, and the health check responded `{"status":"ok"}` at
+  `https://ha-dashboard-prod-n7cbjtsj5a-nn.a.run.app/health`.
