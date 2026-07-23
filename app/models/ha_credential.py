@@ -31,10 +31,19 @@ class HACredential(Base):
     last_tested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # No `onupdate=func.now()` here - the only write path (upsert_ha_credential below) is a raw
     # Core `INSERT ... ON CONFLICT DO UPDATE` statement, which never goes through ORM flush/update
-    # and so would never trigger it. `upsert_ha_credential`'s own `set_={"updated_at": func.now()}`
-    # is what actually bumps this column - an `onupdate` here would be dead config that misleads a
-    # future contributor into assuming any ORM-level touch updates it.
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # and so would never trigger it. `upsert_ha_credential`'s own `set_={"updated_at": ...}` is what
+    # actually bumps this column - an `onupdate` here would be dead config that misleads a future
+    # contributor into assuming any ORM-level touch updates it.
+    #
+    # `clock_timestamp()`, not `func.now()`: Postgres's `now()`/`CURRENT_TIMESTAMP` is frozen to
+    # the enclosing transaction's start time, not wall-clock time - two upserts inside the same
+    # transaction (e.g. this repo's own savepoint-per-test isolation fixture, tests/conftest.py)
+    # would otherwise get an *identical* `updated_at`, breaking the "confirmed via updated_at
+    # changing" acceptance criterion even though the row genuinely was overwritten.
+    # `clock_timestamp()` always returns the real current time regardless of transaction age.
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.clock_timestamp()
+    )
 
 
 async def get_ha_credential(db: AsyncSession, user_id: uuid.UUID) -> HACredential | None:
@@ -79,7 +88,8 @@ async def upsert_ha_credential(
             "ha_host_url": ha_host_url,
             "encrypted_token": encrypted_token,
             "last_tested_at": tested_at,
-            "updated_at": func.now(),
+            # clock_timestamp(), not now() - see the column's own comment above.
+            "updated_at": func.clock_timestamp(),
         },
     )
     await db.execute(stmt)

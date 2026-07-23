@@ -32,7 +32,11 @@ def upgrade() -> None:
         sa.Column("ha_host_url", sa.Text(), nullable=False),
         sa.Column("encrypted_token", sa.Text(), nullable=False),
         sa.Column("last_tested_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        # clock_timestamp(), not now() - now()/CURRENT_TIMESTAMP is frozen to the enclosing
+        # transaction's start time, not wall-clock time, which would make two writes inside one
+        # transaction (e.g. this repo's savepoint-per-test isolation fixture) get an identical
+        # updated_at. See app/models/ha_credential.py's matching column comment.
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.clock_timestamp()),
         sa.ForeignKeyConstraint(
             ["user_id"], ["host.users.id"], ondelete="cascade", name="fk_ha_credential_user_id"
         ),
