@@ -18,6 +18,15 @@ your own local Postgres instance for local development.
 
 ## Running locally
 
+The compiled stylesheet (`app/static/css/app.css`) is gitignored and generated, not committed -
+build it once (or run `--watch` alongside `--reload` while iterating on templates):
+
+```
+uv sync --group build
+uv run python scripts/build_css.py         # one-shot
+uv run python scripts/build_css.py --watch # recompiles on template/CSS changes
+```
+
 ```
 uv run uvicorn app.main:app --reload --port 8000
 ```
