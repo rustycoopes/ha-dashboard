@@ -81,9 +81,10 @@ class TokenFactory:
 async def db_session() -> AsyncIterator[AsyncSession]:
     """A DB session whose writes are rolled back at teardown (mirrors organize-me's own fixture).
 
-    Requires a real, reachable DATABASE_URL (the Supabase QA database in CI — see
-    .github/workflows/ci.yml) — there is no local Docker Postgres in this project's dev
-    convention. Builds its own dedicated engine per test (rather than reusing
+    Requires a real, reachable DATABASE_URL (a throwaway Postgres service container in CI — see
+    .github/workflows/ci.yml; ha-dashboard has no QA Supabase tier) — there is no local Docker
+    Postgres in this project's dev convention. Builds its own dedicated engine per test (rather
+    than reusing
     app.db.session's process-wide singleton) because asyncpg connections are bound to the event
     loop that created them, and pytest-asyncio gives each test function its own loop by default.
     """

@@ -60,6 +60,42 @@ jobs:
       - name: Run Alembic migrations against throwaway Postgres
         run: uv run alembic upgrade head
 
+      # alembic upgrade head can exit 0 while having actually done nothing, if a connection is
+      # left mid-transaction when Alembic hands off to its own transaction management (see
+      # migrations/env.py's comment) - the health check below never touches the DB, so nothing
+      # else in this job would otherwise notice. Assert the version table actually has the
+      # expected row.
+      - name: Verify the migration actually persisted
+        run: |
+          uv run python - <<'PYEOF'
+          import asyncio
+          import os
+
+          import asyncpg
+
+          from app.db.url import to_asyncpg_url
+
+
+          async def main() -> None:
+              url = to_asyncpg_url(os.environ["DATABASE_URL"]).replace("+asyncpg", "")
+              conn = await asyncpg.connect(url)
+              try:
+                  row = await conn.fetchrow("SELECT version_num FROM ha_dashboard.alembic_version")
+              finally:
+                  await conn.close()
+              assert row is not None, "ha_dashboard.alembic_version is empty - migration did not persist"
+              print(f"Migration persisted at revision: {row['version_num']}")
+
+
+          asyncio.run(main())
+          PYEOF
+
+      - name: Run pytest
+        run: uv run pytest
+
+      - name: Run mypy
+        run: uv run mypy app tests
+
       - name: Build production image
         run: docker build -t ha-dashboard-smoke:${{ github.sha }} .
 
@@ -124,6 +160,33 @@ jobs:
           JWT_SECRET: ci-placeholder-unused
         run: uv run alembic upgrade head
 
+      - name: Verify the migration actually persisted
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_PROD_URL }}
+        run: |
+          uv run python - <<'PYEOF'
+          import asyncio
+          import os
+
+          import asyncpg
+
+          from app.db.url import to_asyncpg_url
+
+
+          async def main() -> None:
+              url = to_asyncpg_url(os.environ["DATABASE_URL"]).replace("+asyncpg", "")
+              conn = await asyncpg.connect(url)
+              try:
+                  row = await conn.fetchrow("SELECT version_num FROM ha_dashboard.alembic_version")
+              finally:
+                  await conn.close()
+              assert row is not None, "ha_dashboard.alembic_version is empty - migration did not persist"
+              print(f"Migration persisted at revision: {row['version_num']}")
+
+
+          asyncio.run(main())
+          PYEOF
+
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
@@ -174,10 +237,22 @@ jobs:
             --quiet
 
       - name: Verify health check on the deployed service
+        # gcloud run deploy already blocks until the new revision is Ready, so this shouldn't
+        # need to retry in practice - a short retry loop (matching the smoke-test job's own, just
+        # shorter) is cheap insurance against the revision briefly not accepting traffic yet.
         run: |
           SERVICE_URL=$(gcloud run services describe ha-dashboard-prod \
             --region=${{ env.GCP_REGION }} \
             --project=${{ env.GCP_PROJECT_ID }} \
             --format='value(status.url)')
           echo "Checking $SERVICE_URL/health"
-          curl -sf "$SERVICE_URL/health"
+          for attempt in $(seq 1 5); do
+            if curl -sf "$SERVICE_URL/health"; then
+              echo "Health check succeeded on attempt $attempt"
+              exit 0
+            fi
+            echo "Attempt $attempt: not ready yet, retrying..."
+            sleep 3
+          done
+          echo "Health check never succeeded against the deployed service"
+          exit 1

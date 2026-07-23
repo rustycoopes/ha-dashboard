@@ -55,16 +55,6 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    # Alembic creates its own alembic_version tracking table in VERSION_TABLE_SCHEMA before
-    # running any migration (including the 0001 migration that itself creates that schema) -
-    # against a database where ha_dashboard doesn't exist yet at all (a fresh throwaway CI
-    # Postgres, or a brand-new Supabase instance), _ensure_version_table fails with
-    # InvalidSchemaNameError before upgrade() ever runs. Every other hosted app never hit this
-    # because a human had already created their schema once by hand in real Supabase before the
-    # first `alembic upgrade head` ran there. Bootstrap it here instead, idempotently, so this
-    # works against a database that has never seen this app before.
-    connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS {VERSION_TABLE_SCHEMA}"))
-
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
@@ -82,6 +72,24 @@ async def run_async_migrations() -> None:
     )
 
     async with connectable.connect() as connection:
+        # Alembic creates its own alembic_version tracking table in VERSION_TABLE_SCHEMA before
+        # running any migration (including 0001, which is the migration that creates that schema)
+        # - against a database where ha_dashboard doesn't exist yet at all (a fresh throwaway CI
+        # Postgres, or a brand-new Supabase instance), _ensure_version_table fails with
+        # InvalidSchemaNameError before upgrade() ever runs. Bootstrap it here instead,
+        # idempotently, mirroring doc-library's own identical fix
+        # (doc-library/migrations/env.py) for the same problem.
+        #
+        # Must commit before handing off to do_run_migrations: a bare execute() here leaves this
+        # connection in an open transaction, which flips Alembic's _in_external_transaction check
+        # to True and makes it skip managing (and committing) its own transaction entirely,
+        # assuming the caller owns it - but nothing then commits it either, so
+        # connection.close() (via this `async with` block exiting) silently rolls back the
+        # schema/role creation, the migration's own DDL, and the alembic_version bookkeeping row,
+        # while `alembic upgrade head` still exits 0.
+        await connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS {VERSION_TABLE_SCHEMA}"))
+        await connection.commit()
+
         await connection.run_sync(do_run_migrations)
 
     await connectable.dispose()
