@@ -1,7 +1,7 @@
 import asyncio
 from logging.config import fileConfig
 
-from sqlalchemy import pool
+from sqlalchemy import pool, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -55,6 +55,16 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
+    # Alembic creates its own alembic_version tracking table in VERSION_TABLE_SCHEMA before
+    # running any migration (including the 0001 migration that itself creates that schema) -
+    # against a database where ha_dashboard doesn't exist yet at all (a fresh throwaway CI
+    # Postgres, or a brand-new Supabase instance), _ensure_version_table fails with
+    # InvalidSchemaNameError before upgrade() ever runs. Every other hosted app never hit this
+    # because a human had already created their schema once by hand in real Supabase before the
+    # first `alembic upgrade head` ran there. Bootstrap it here instead, idempotently, so this
+    # works against a database that has never seen this app before.
+    connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS {VERSION_TABLE_SCHEMA}"))
+
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
