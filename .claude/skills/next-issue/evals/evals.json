@@ -1,0 +1,27 @@
+{
+  "skill_name": "next-issue",
+  "note": "These test the SELECTION logic only. Each run is instructed to stop before Step 5 (do NOT invoke /to-implementation) and just report the pick + reasoning, so evals have no branch/PR/deploy side effects.",
+  "evals": [
+    {
+      "id": 0,
+      "name": "live-board-natural-ask",
+      "prompt": "what should I work on next?",
+      "expected_output": "Selects one Slice 1 Todo issue. With no open bugs on the board, picks from the enhancement tier and chooses #17 (sidebar shell) over #23 (E2E tests) because #23 is blocked by #17. Explains the tier and the unblocks-#23 reasoning. Does not just take the lowest number.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "explicit-priority-triage",
+      "prompt": "which slice 1 issue is the highest priority to pick up right now, and why? just tell me your choice, don't start it yet",
+      "expected_output": "Same selection (#17) with an explicit priority explanation: bug > enhancement > future-enhancement, top occupied tier is enhancement, #17 chosen over #23 as the unblocker. Honors 'don't start it yet'.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "future-enh-only-hypothetical",
+      "prompt": "if the only Todo issues left in slice 1 were the future-enhancement ones (#29-#42), which would you pick to work on next and why? don't start it.",
+      "expected_output": "Picks one future-enhancement, and correctly flags any 'decide whether to...' items (e.g. #37 encryption, #39 SEO, #42 authed-visitor behaviour) as needing a product decision before /to-implementation, rather than treating them as pure build tasks. Prefers a foundational/unblocking one (e.g. #31 shared macro or #30 email template) with reasoning.",
+      "files": []
+    }
+  ]
+}
