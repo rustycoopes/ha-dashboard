@@ -83,3 +83,9 @@ async def upsert_ha_credential(
         },
     )
     await db.execute(stmt)
+    # This is a raw Core statement, not an ORM-tracked update - it never touches the session's
+    # identity map, so a HACredential instance already loaded earlier on this same session (e.g.
+    # a prior get_ha_credential() call) would otherwise keep serving its stale, pre-upsert column
+    # values on the next read instead of re-querying. Expiring here means any such instance
+    # re-fetches from the DB on next attribute access, same as after an ORM-tracked write.
+    db.expire_all()
