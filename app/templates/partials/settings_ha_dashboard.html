@@ -1,0 +1,67 @@
+{#
+  Settings > HA Dashboard panel fragment (Slice 3). Rendered by
+  GET /settings/ha-dashboard/ha-dashboard for the Host's Settings-shell page to swap in via
+  same-origin HTMX fetch - not a full page (no {% extends %}).
+
+  Two independent htmx actions share this one form:
+    - Test Connection (hx-post .../test-connection, hx-target #test-connection-result,
+      hx-swap innerHTML) - swaps only the small inline result area, leaving the typed
+      host/token values in place.
+    - Save (hx-post the tab's own URL, hx-target #ha-dashboard-settings-panel,
+      hx-swap outerHTML) - replaces this whole panel with the freshly rendered server state
+      (success or failure), so the server-rendered credential is always the single source of
+      truth rather than duplicating state client-side.
+
+  Both buttons are type="button" (not submit) - htmx's own hx-post issues the request on click,
+  and a native form submission is never wanted here (there's no form action/method to fall back
+  to, and this fragment is swapped into a shell page, not navigated to).
+
+  The token field never echoes a saved value back (credential never carries it - see
+  schemas.ha_credential.HACredentialRead's docstring) - its placeholder changes instead once a
+  credential is configured, so the user knows leaving it blank on a subsequent Save would fail
+  validation, not silently reuse the old token.
+#}
+{% from "components/alert.html" import alert %}
+{% from "components/input.html" import input %}
+{% from "components/button.html" import button %}
+<div id="ha-dashboard-settings-panel">
+  {% if save_success %}
+  {{ alert("Home Assistant connection saved.", variant="success", class_="mb-4") }}
+  {% endif %}
+  {% if save_error %}
+  {{ alert(save_error, variant="danger", class_="mb-4") }}
+  {% endif %}
+
+  {% if not credential.configured %}
+  <p class="font-body text-sm text-ink-2 dark:text-paper-2 mb-4">
+    Not configured yet — enter your Home Assistant host URL and a long-lived access token below.
+  </p>
+  {% elif credential.last_tested_at %}
+  <p class="font-body text-sm text-ink-2 dark:text-paper-2 mb-4">
+    Last verified {{ credential.last_tested_at.strftime("%Y-%m-%d %H:%M:%S") }} UTC.
+  </p>
+  {% endif %}
+
+  <form class="flex flex-col gap-4">
+    {{ input(
+      "ha_host_url", label="Home Assistant host URL", value=credential.ha_host_url or "",
+      placeholder="https://your-instance.ui.nabu.casa", required=True
+    ) }}
+    {{ input(
+      "token", label="Long-lived access token", type="password",
+      placeholder=("Enter a new token to replace the saved one" if credential.configured else ""),
+      required=(not credential.configured)
+    ) }}
+    <div id="test-connection-result"></div>
+    <div class="flex gap-3">
+      {% call button(
+        type="button", variant="secondary",
+        attrs='hx-post="/settings/ha-dashboard/ha-dashboard/test-connection" hx-include="closest form" hx-target="#test-connection-result" hx-swap="innerHTML"'
+      ) %}Test Connection{% endcall %}
+      {% call button(
+        type="button", variant="primary",
+        attrs='hx-post="/settings/ha-dashboard/ha-dashboard" hx-include="closest form" hx-target="#ha-dashboard-settings-panel" hx-swap="outerHTML"'
+      ) %}Save{% endcall %}
+    </div>
+  </form>
+</div>

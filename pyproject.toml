@@ -26,6 +26,12 @@ dependencies = [
     # and the sidebar is stuck on the self-only cold-start default - doc-library and
     # event-creator both declare this pin for the same reason.
     "requests>=2.32",
+    # Encrypts the stored HA long-lived access token at rest (app.core.security.CredentialCipher,
+    # ported from event-creator, which pins the same version for the same reason).
+    "cryptography>=44.0.0",
+    # Production HATransport implementation (app.services.ha_client.transport) - talks to Home
+    # Assistant's WebSocket API (wss://<host>/api/websocket).
+    "websockets>=13.1",
 ]
 
 [dependency-groups]

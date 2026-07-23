@@ -92,4 +92,62 @@ of testing first. See the TDD's "HA WebSocket client" section for the full ratio
   admin-level and (if feasible to create one) a deliberately non-admin LLAT, to ground-truth the
   taxonomy spike before this slice is considered done.
 
+## Delivered
+
+**Issue:** #3 · **Branch:** `feature/slice-3-ha-connection-settings` · **Date:** 2026-07-23
+
+Shipped the full connection-management path: `ha_dashboard.ha_credential` table + migration
+(`0003_create_ha_credential`), a ported `CredentialCipher` (`app/core/security.py`), the
+`HAWebSocketClient` service package (`app/services/ha_client/`: `client.py`/`transport.py`/
+`errors.py`, an injectable `HATransport` protocol seam with a `websockets`-backed production
+implementation), and the three Settings routes (`app/pages/settings_fragments.py`) with their
+Jinja partials — all per the TDD/ADRs. All 8 acceptance criteria are covered by
+`tests/test_ha_client.py`, `tests/test_ha_credential_model.py` (including a genuine two-connection
+concurrent-upsert test, not just a unit-level assertion), and `tests/test_ha_credential_settings.py`.
+
+**Open Question #1 (non-admin-token bucketing) — resolved by research, not a live spike.** No real
+non-admin Home Assistant LLAT was available in this session to spike against directly. The chosen
+bucketing (a non-admin token's `config_entries/get` failure buckets as `HAConnectionError`, not
+`HAAuthError`) is confirmed instead by HA's own `websocket_api.require_admin` decorator behavior:
+it rejects at the individual command (a normal `success: false` result frame), not at the auth
+handshake — matching this design's assumption. **Still recommended before/after this deploy**: a
+real manual Test Connection against the actual Home Assistant instance with a genuinely
+non-admin-scoped LLAT, per the WBS's own "Manual" testing note above, to ground-truth this against
+the real instance rather than research alone.
+
+**Diverged from plan — two real bugs the WBS/TDD couldn't have anticipated, both fixed here:**
+
+1. **Missing ADRs.** The TDD/WBS link to `docs/adr/ha-dashboard-credential-storage.md`,
+   `ha-dashboard-ha-client-module-boundary.md`, and `ha-dashboard-no-qa-environment.md`, but
+   `/new-hosted-app` never carried them from `organize-me` (where they were originally written,
+   alongside the PRD/TDD/WBS, before this repo existed) into this repo — they only existed at
+   `organize-me/docs/adr/`. Copied all three into this repo's `docs/adr/` (fixing one broken
+   relative link inside the module-boundary ADR to an absolute URL, since it pointed at a fourth,
+   `doc-library`-owned ADR that doesn't have a home in either repo's structure yet).
+2. **The Host's Settings page was hardcoded to one app.** `organize-me`'s `app/pages/settings.py`/
+   `app/templates/settings.html` only ever fetched `event-creator`'s tab fragments
+   (`/settings/event-creator/{tab.id}`) — there was no code path that would ever reach this
+   slice's own Settings tab even though the registry already listed it (Slice 2, `organize-me`
+   PR #248). Fixed in `organize-me` (branch `fix/settings-shell-multi-app-tabs`, see that repo's
+   own PR) to aggregate `settings_tabs` across every registered app and fetch each tab from its
+   owning `service_name`, not a single hardcoded one. Without this fix, acceptance criteria 1 and 7
+   (the Settings tab being reachable and correctly per-user through the real platform UI) would
+   only have been verifiable by curling this repo's routes directly, never through the actual
+   product.
+
+**Code review** (code-review-master + code-quality-guardian, both run against the full diff)
+found one genuine correctness bug, fixed before merge: `HAWebSocketClient._fetch`'s three
+`HASummary`-parsing calls sat outside the method's `try/except`, so a payload that was the right
+*shape* but wrong *content* (e.g. `"entity_id": null`) could leak a raw `AttributeError` instead of
+the documented `HAConnectionError` — violating the module's own two-exception-taxonomy contract.
+Moved the parsing inside the `try`, added a regression test
+(`test_null_valued_field_during_parsing_raises_ha_connection_error_not_a_raw_exception`). Also
+fixed: an explicit `ws://` host was silently upgraded to `wss://` in `_websocket_url` (now treated
+the same as `http://`); removed a dead `onupdate=func.now()` on `HACredential.updated_at` (the only
+write path is a raw `ON CONFLICT DO UPDATE` statement that never triggers ORM `onupdate`). One
+accepted-risk item was documented rather than fixed: `ha_host_url` is unconstrained user input with
+no private-IP/SSRF denylist — see the credential-storage ADR's expanded Consequences section for
+why a denylist would break the feature's actual primary use case (most real HA instances are
+reached over a home's local network, not solely via Nabu Casa).
+
 <!-- /to-implementation appends a "## Delivered" section here once this slice ships. -->

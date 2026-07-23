@@ -24,6 +24,18 @@ class Settings(BaseSettings):
     registry_refresh_interval_seconds: float = 60
     registry_fetch_timeout_seconds: float = 5
 
+    # Fernet key used to encrypt the stored HA long-lived access token at rest (see
+    # app.core.security) - the platform's existing shared `encryption-key-prod` Secret Manager
+    # value (docs/adr/ha-dashboard-credential-storage.md), not a new ha-dashboard-specific key.
+    # Empty default (mirrors event-creator's identical field) - get_credential_cipher() raises a
+    # clear RuntimeError if it's actually used while unset, rather than failing Settings
+    # construction for every route that doesn't touch credentials yet.
+    encryption_key: str = ""
+    # Timeout budget (seconds) for the whole HAWebSocketClient connect->auth->3-command exchange
+    # (app.services.ha_client), enforced app-side via asyncio.wait_for rather than left to Cloud
+    # Run's own request timeout - see the TDD's "HA WebSocket client" section.
+    ha_fetch_timeout_seconds: float = 10
+
     # Add app-specific settings below as they're needed (third-party API keys, feature flags,
     # etc.) — follow the empty-default-with-a-clear-runtime-error pattern used across the other
     # hosted apps for anything that's optional until a specific code path actually uses it.
