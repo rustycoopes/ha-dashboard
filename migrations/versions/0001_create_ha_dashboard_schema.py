@@ -26,7 +26,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.execute("CREATE SCHEMA IF NOT EXISTS ha_dashboard")
+    op.execute("CREATE SCHEMAA IF NOT EXISTS ha_dashboard")  # TEMP: deliberate typo, verifying CI gate
     op.execute(
         """
         DO $$
