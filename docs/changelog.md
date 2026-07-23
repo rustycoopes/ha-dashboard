@@ -16,3 +16,4 @@
 
 ### Added
 - 2026-07-23 — #1 Slice 1: Repo & infra setup — [details](features/ha-dashboard/WBS/slice-1-repo-and-infra-setup.md)
+- 2026-07-23 — #2 Slice 2: SSO-trust tracer bullet — [details](features/ha-dashboard/WBS/slice-2-sso-trust-tracer-bullet.md)
