@@ -11,7 +11,7 @@ import json
 from collections.abc import Callable
 from types import TracebackType
 from typing import Any, Protocol
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import SplitResult, urlsplit, urlunsplit
 
 import websockets
 
@@ -43,22 +43,33 @@ class HATransport(Protocol):
 HATransportFactory = Callable[[str], HATransport]
 
 
-_PLAINTEXT_SCHEMES = frozenset({"http", "ws"})
+PLAINTEXT_SCHEMES = frozenset({"http", "ws"})
 
 
-def _websocket_url(host: str) -> str:
-    """The `wss://.../api/websocket` (or `ws://` for a plain `http://`/`ws://` host - local
-    testing convenience) URL for a stored `ha_host_url` like `https://<id>.ui.nabu.casa`.
+def normalize_host_url(host: str) -> SplitResult:
+    """Parses a stored `ha_host_url` (e.g. `https://<id>.ui.nabu.casa` or a bare local hostname
+    like `homeassistant.local:8123`) into its scheme/netloc/path parts, defaulting to `https` when
+    there's no scheme at all - matching every real deployment (Nabu Casa remote UI is always
+    `https`; a bare local hostname is never meant as a path relative to *this* app's own origin).
 
-    Defaults to `wss` for a bare hostname with no scheme at all, matching every real deployment
-    (Nabu Casa remote UI is always `https`) - only an explicit `http://` or `ws://` downgrades to
-    `ws`.
+    Shared by `_websocket_url` below (the live WS connection) and the Slice 4 tiles fragment's
+    deep-link hrefs (`app.pages.ha_dashboard_tiles`), so both only ever agree on what "the same
+    host" resolves to.
     """
     candidate = host.strip()
     if "://" not in candidate:
         candidate = f"https://{candidate}"
-    parts = urlsplit(candidate)
-    scheme = "ws" if parts.scheme in _PLAINTEXT_SCHEMES else "wss"
+    return urlsplit(candidate)
+
+
+def _websocket_url(host: str) -> str:
+    """The `wss://.../api/websocket` (or `ws://` for a plain `http://`/`ws://` host - local
+    testing convenience) URL for a stored `ha_host_url`.
+
+    Only an explicit `http://` or `ws://` downgrades to `ws` - see `normalize_host_url`.
+    """
+    parts = normalize_host_url(host)
+    scheme = "ws" if parts.scheme in PLAINTEXT_SCHEMES else "wss"
     return urlunsplit((scheme, parts.netloc, "/api/websocket", "", ""))
 
 

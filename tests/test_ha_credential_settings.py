@@ -4,41 +4,12 @@ Test Connection, and Save routes, against the real app + real test Postgres, wit
 Assistant instance.
 """
 
-from datetime import UTC, datetime
-
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ha_credential import HACredential
-from app.schemas.ha_summary import HASummary
-from app.services.ha_client import HAAuthError, HAConnectionError, get_ha_client
-from tests.conftest import TokenFactory, create_host_user
-
-
-class FakeHAWebSocketClient:
-    """Duck-types `HAWebSocketClient`'s one entry point - overridden in via FastAPI's
-    `dependency_overrides`, same pattern as this platform's other hosted-app fakes."""
-
-    def __init__(self, outcome: str = "success") -> None:
-        self._outcome = outcome
-        self.calls: list[tuple[str, str]] = []
-
-    async def fetch_dashboard_summary(self, host: str, token: str) -> HASummary:
-        self.calls.append((host, token))
-        if self._outcome == "auth_failure":
-            raise HAAuthError("Invalid access token")
-        if self._outcome == "generic_failure":
-            raise HAConnectionError("Could not connect")
-        return HASummary(fetched_at=datetime.now(UTC))
-
-
-def _override_ha_client(outcome: str = "success") -> FakeHAWebSocketClient:
-    from app.main import app
-
-    fake = FakeHAWebSocketClient(outcome)
-    app.dependency_overrides[get_ha_client] = lambda: fake
-    return fake
+from tests.conftest import TokenFactory, create_host_user, override_ha_client as _override_ha_client
 
 
 async def test_settings_fragment_shows_a_reauth_prompt_when_logged_out(

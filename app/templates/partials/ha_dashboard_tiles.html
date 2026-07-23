@@ -1,0 +1,58 @@
+{#
+  Slice 4 tiles fragment - rendered by GET /ha-dashboard/tiles for the shell page's
+  #ha-dashboard-tiles placeholder to swap in via `hx-trigger="load"`. Exactly one of four states:
+
+    not_configured  - no ha_credential row for this user; prompt links to Settings.
+    success         - three tiles (updates / repairs / integration errors); `tiles` and
+                       `fetched_at` are provided.
+    auth_failure    - HAWebSocketClient raised HAAuthError.
+    generic_failure - HAWebSocketClient raised HAConnectionError.
+
+  Each tile's count/names link out to the matching HA page (target="_blank") - remediation always
+  happens in Home Assistant itself, this app never mutates HA state. A zero-count tile renders with
+  the platform's "success" alert palette (sage) instead of the neutral card border, so "all clear"
+  reads as visibly distinct at a glance, not just via its text.
+#}
+{% from "components/alert.html" import alert %}
+{% from "components/badge.html" import badge %}
+
+{% if state == "not_configured" %}
+{% call alert(variant="info") %}
+Home Assistant isn't connected yet. <a href="/settings" class="underline hover:no-underline">Go to Settings</a> to add your connection.
+{% endcall %}
+
+{% elif state == "auth_failure" %}
+{{ alert("Home Assistant rejected the token.", variant="danger") }}
+
+{% elif state == "generic_failure" %}
+{{ alert("Could not connect to Home Assistant. Check your connection in Settings and try again.", variant="danger") }}
+
+{% elif state == "success" %}
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+  {% for tile in tiles %}
+  <div
+    class="rounded-lg border p-4 shadow-sm {{ 'border-sage/30 bg-sage-tint dark:border-sage/40 dark:bg-sage/10' if tile.count == 0 else 'border-ink-2/10 bg-paper dark:border-paper/10 dark:bg-ink-2' }}"
+  >
+    <h2 class="font-display text-lg font-semibold text-ink dark:text-paper">{{ tile.title }}</h2>
+
+    {% if tile.count == 0 %}
+    <div class="mt-2">{{ badge("All clear", variant="success") }}</div>
+    {% else %}
+    <a href="{{ tile.deep_link }}" target="_blank" rel="noopener" class="mt-1 block font-display text-2xl font-semibold text-ink hover:underline dark:text-paper">{{ tile.count }}</a>
+    <ul class="mt-2 flex flex-col gap-1 font-body text-sm text-ink-2 dark:text-paper-2">
+      {% for name in tile.names %}
+      <li>
+        <a href="{{ tile.deep_link }}" target="_blank" rel="noopener" class="hover:underline">{{ name }}</a>
+      </li>
+      {% endfor %}
+      {% if tile.more_count %}
+      <li class="text-ink-2/70 dark:text-paper-2/70">+{{ tile.more_count }} more</li>
+      {% endif %}
+    </ul>
+    {% endif %}
+
+    <p class="mt-3 font-body text-xs text-ink-2/70 dark:text-paper-2/70">As of {{ fetched_at.strftime("%H:%M:%S") }} UTC</p>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
