@@ -2,9 +2,30 @@
 
 {% block title %}HA Dashboard{% endblock %}
 
+{% block head %}
+{# Slice 4: the tiles fragment below is fetched via same-origin HTMX from this app's own
+   `GET /ha-dashboard/tiles` route - matches organize-me's settings.html identical CDN-script +
+   hx-trigger=load shell-then-fragment pattern. #}
+<script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.12/dist/htmx.min.js"></script>
+{% endblock %}
+
 {% block page %}
 <div class="mx-auto max-w-2xl">
   <h1 class="font-display text-2xl font-semibold text-ink dark:text-paper">HA Dashboard</h1>
-  <p class="mt-4 text-ink-2 dark:text-paper-2">Home Assistant connection coming soon.</p>
+
+  {# Slice 4: GET /ha-dashboard returns instantly with this loading placeholder - the up-to-10s
+     Home Assistant WebSocket fetch only ever happens behind this fragment request, never here. #}
+  <div
+    id="ha-dashboard-tiles"
+    class="mt-4"
+    hx-get="/ha-dashboard/tiles"
+    hx-trigger="load"
+    hx-swap="innerHTML"
+  >
+    <div class="flex items-center gap-2 font-body text-sm text-ink-2 dark:text-paper-2">
+      <span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-ink-2/30 border-t-flame dark:border-paper/30 dark:border-t-flame" aria-hidden="true"></span>
+      <span>Loading Home Assistant status…</span>
+    </div>
+  </div>
 </div>
 {% endblock %}

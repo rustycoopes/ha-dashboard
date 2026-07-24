@@ -2,6 +2,7 @@ import json
 import time
 import uuid
 from collections.abc import AsyncIterator, Iterator
+from datetime import UTC, datetime
 
 import jwt
 import pytest
@@ -12,6 +13,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.registry import configure_client_registry_source
+from app.schemas.ha_summary import HASummary
+from app.services.ha_client import HAAuthError, HAConnectionError, get_ha_client
 
 JWT_SECRET = "test-jwt-secret"
 # A fixed, throwaway Fernet key (cryptography.fernet.Fernet.generate_key()'s output shape) rather
@@ -196,3 +199,34 @@ async def client(db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
             yield ac
     finally:
         app.dependency_overrides.clear()
+
+
+class FakeHAWebSocketClient:
+    """Duck-types `HAWebSocketClient`'s one entry point - overridden in via FastAPI's
+    `dependency_overrides`, same pattern as this platform's other hosted-app fakes. Shared by
+    tests/test_ha_credential_settings.py (Slice 3) and tests/test_ha_dashboard_tiles.py (Slice 4),
+    the two route modules that both depend on `get_ha_client`.
+    """
+
+    def __init__(self, outcome: str = "success", summary: HASummary | None = None) -> None:
+        self._outcome = outcome
+        self._summary = summary
+        self.calls: list[tuple[str, str]] = []
+
+    async def fetch_dashboard_summary(self, host: str, token: str) -> HASummary:
+        self.calls.append((host, token))
+        if self._outcome == "auth_failure":
+            raise HAAuthError("Invalid access token")
+        if self._outcome == "generic_failure":
+            raise HAConnectionError("Could not connect")
+        return self._summary or HASummary(fetched_at=datetime.now(UTC))
+
+
+def override_ha_client(
+    outcome: str = "success", summary: HASummary | None = None
+) -> FakeHAWebSocketClient:
+    from app.main import app
+
+    fake = FakeHAWebSocketClient(outcome, summary)
+    app.dependency_overrides[get_ha_client] = lambda: fake
+    return fake

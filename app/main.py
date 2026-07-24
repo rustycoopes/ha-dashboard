@@ -17,6 +17,7 @@ from app.core.registry import (
     stop_registry_refresh_task,
 )
 from app.pages.ha_dashboard import router as ha_dashboard_router
+from app.pages.ha_dashboard_tiles import router as ha_dashboard_tiles_router
 from app.pages.settings_fragments import router as settings_fragments_router
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -44,6 +45,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="HA Dashboard", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 app.include_router(ha_dashboard_router)
+app.include_router(ha_dashboard_tiles_router)
 app.include_router(settings_fragments_router)
 
 

@@ -2,15 +2,20 @@
 no login/session logic of its own, renders the shared chrome (including dark-mode) for a logged-in
 user, and redirects an unauthenticated visitor to the Host's login - proving the cross-repo trust
 seam end to end before any real HA integration or feature logic is built.
+
+Slice 4 extends this: the page shell itself must keep returning instantly with a loading
+placeholder, never performing the HA WebSocket fetch itself - that only happens behind
+GET /ha-dashboard/tiles (tests/test_ha_dashboard_tiles.py).
 """
 
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.ha_client import get_ha_client
 from tests.conftest import TokenFactory, create_host_user
 
 
-async def test_valid_host_jwt_renders_the_empty_state_page(
+async def test_valid_host_jwt_renders_the_loading_placeholder(
     client: AsyncClient, db_session: AsyncSession, make_token: type[TokenFactory]
 ) -> None:
     user_id = await create_host_user(db_session)
@@ -22,7 +27,31 @@ async def test_valid_host_jwt_renders_the_empty_state_page(
 
     assert response.status_code == 200
     assert "HA Dashboard" in response.text
-    assert "Home Assistant connection coming soon" in response.text
+    assert 'id="ha-dashboard-tiles"' in response.text
+    assert 'hx-get="/ha-dashboard/tiles"' in response.text
+    assert 'hx-trigger="load"' in response.text
+    assert "Loading Home Assistant status" in response.text
+
+
+async def test_shell_route_never_calls_the_ha_client(
+    client: AsyncClient, db_session: AsyncSession, make_token: type[TokenFactory]
+) -> None:
+    """The shell and tiles fragment routes are genuinely decoupled, not just decoupled by
+    convention - proven by overriding get_ha_client with a fake that fails if it's ever called,
+    then confirming GET /ha-dashboard (not /ha-dashboard/tiles) still renders successfully."""
+    from app.main import app
+
+    def _unexpected_call() -> None:
+        raise AssertionError("GET /ha-dashboard must not touch the HA client")
+
+    app.dependency_overrides[get_ha_client] = _unexpected_call
+
+    user_id = await create_host_user(db_session)
+    token = make_token.valid(sub=str(user_id))
+
+    response = await client.get("/ha-dashboard", cookies={"organizeme_auth": token})
+
+    assert response.status_code == 200
 
 
 async def test_no_cookie_redirects_to_host_login(client: AsyncClient) -> None:

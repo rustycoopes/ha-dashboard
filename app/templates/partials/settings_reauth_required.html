@@ -1,12 +1,14 @@
 {#
-  Shared "please log back in" fragment for the Settings tab routes (app.pages.settings_fragments)
-  when the Host auth cookie is missing/invalid/expired. Adapted from event-creator's identical
-  partial (rebuilt here on the shared alert() component rather than event-creator's original
-  DaisyUI classes, which have no CSS behind them on this platform - see event-creator#30).
-  Consumed via same-origin HTMX fetch by the Host's Settings-shell page, so a 302 to /login would
-  have htmx swap the Host's full login page markup into a settings-tab-sized panel instead.
-  Served with a 200 status (see settings_fragments.py's module docstring) so vanilla htmx actually
-  swaps this markup in.
+  Shared "please log back in" fragment for any HTMX-fetched fragment route whose Host auth cookie
+  is missing/invalid/expired - app.pages.settings_fragments (the Settings tab, swapped into the
+  Host's Settings-shell page) and app.pages.ha_dashboard_tiles (the dashboard tiles fragment,
+  swapped into this app's own /ha-dashboard shell) both render this. Adapted from event-creator's
+  identical partial (rebuilt here on the shared alert() component rather than event-creator's
+  original DaisyUI classes, which have no CSS behind them on this platform - see
+  event-creator#30).
+  Consumed via same-origin HTMX fetch, so a 302 to /login would have htmx swap the Host's full
+  login page markup into a fragment-sized panel instead. Served with a 200 status (see
+  settings_fragments.py's module docstring) so vanilla htmx actually swaps this markup in.
 #}
 {% from "components/alert.html" import alert %}
 {% call alert(variant="info") %}
