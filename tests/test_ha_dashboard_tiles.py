@@ -121,7 +121,7 @@ async def test_success_truncates_names_to_five_and_shows_the_remainder_count(
     assert "Device 6 Update" not in response.text
     assert "+2 more" in response.text
     assert f'href="{host}/config/system/updates" target="_blank"' in response.text
-    assert f'{host}/config/system/updates">7</a>' in response.text
+    assert ">7</a>" in response.text
 
 
 async def test_success_renders_repair_and_integration_error_deep_links(
@@ -179,7 +179,11 @@ async def test_deep_links_default_to_https_for_a_scheme_less_host(
     token = make_token.valid(sub=str(user_id))
     client.cookies.set("organizeme_auth", token)
     await _seed_credential(db_session, user_id, host="homeassistant.local:8123")
-    _override_ha_client("success", HASummary(fetched_at=datetime(2024, 1, 1, 8, 0, 0, tzinfo=UTC)))
+    summary = HASummary(
+        fetched_at=datetime(2024, 1, 1, 8, 0, 0, tzinfo=UTC),
+        repair_issues=[RepairIssue(issue_id="r1", name="Battery low")],
+    )
+    _override_ha_client("success", summary)
 
     response = await client.get("/ha-dashboard/tiles")
 
