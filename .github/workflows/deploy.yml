@@ -94,7 +94,7 @@ jobs:
 
           async def main() -> None:
               url = to_asyncpg_url(os.environ["DATABASE_URL"]).replace("+asyncpg", "")
-              conn = await asyncpg.connect(url)
+              conn = await asyncpg.connect(url, statement_cache_size=0)
               try:
                   row = await conn.fetchrow("SELECT version_num FROM ha_dashboard.alembic_version")
               finally:
@@ -176,6 +176,14 @@ jobs:
           JWT_SECRET: ci-placeholder-unused
         run: uv run alembic upgrade head
 
+      # SUPABASE_PROD_URL is the transaction-mode pooler, not a direct connection (same reasoning
+      # as organize-me's own DATABASE_URL - the direct host is IPv6-only). asyncpg's default
+      # statement cache assumes a stable backend connection; pgbouncer transaction pooling can
+      # hand this logical connection a physical backend that already has a prepared statement
+      # cached under the same auto-generated name from a previous session, raising
+      # DuplicatePreparedStatementError. app/db/session.py's real engine already disables this via
+      # connect_args - this ad-hoc verification script talks to asyncpg directly and needs the
+      # same statement_cache_size=0 explicitly.
       - name: Verify the migration actually persisted
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_PROD_URL }}
@@ -191,7 +199,7 @@ jobs:
 
           async def main() -> None:
               url = to_asyncpg_url(os.environ["DATABASE_URL"]).replace("+asyncpg", "")
-              conn = await asyncpg.connect(url)
+              conn = await asyncpg.connect(url, statement_cache_size=0)
               try:
                   row = await conn.fetchrow("SELECT version_num FROM ha_dashboard.alembic_version")
               finally:
