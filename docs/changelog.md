@@ -19,3 +19,7 @@
 - 2026-07-23 — #2 Slice 2: SSO-trust tracer bullet — [details](features/ha-dashboard/WBS/slice-2-sso-trust-tracer-bullet.md)
 - 2026-07-23 — #3 Slice 3: HA connection settings — [details](features/ha-dashboard/WBS/slice-3-ha-connection-settings.md#delivered)
 - 2026-07-23 — #4 Slice 4: Live dashboard tiles — [details](features/ha-dashboard/WBS/slice-4-live-dashboard-tiles.md#delivered)
+
+### Changed
+- 2026-07-25 — TailAdmin-style tile redesign (icon chips, bigger numbers, lifted shadow, drawn
+  background texture and title mark, live sync pill) — [details](adr/ha-dashboard-tailadmin-tile-redesign.md)

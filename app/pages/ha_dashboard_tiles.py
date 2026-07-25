@@ -69,10 +69,17 @@ class TileView:
     names: list[str]
     more_count: int
     deep_link: str
+    # One of "updates" | "repairs" | "integrations" - selects the tile's icon in the partial.
+    # An explicit field rather than the template matching on `title` text or loop position, so the
+    # icon mapping survives a copy-tweak to the title string or a reordering of _build_tiles below.
+    icon: str
 
 
 def _build_tile(
-    title: str, items: list[UpdateItem] | list[RepairIssue] | list[IntegrationError], deep_link: str
+    title: str,
+    items: list[UpdateItem] | list[RepairIssue] | list[IntegrationError],
+    deep_link: str,
+    icon: str,
 ) -> TileView:
     return TileView(
         title=title,
@@ -80,15 +87,18 @@ def _build_tile(
         names=[item.name for item in items[:_MAX_TILE_NAMES]],
         more_count=max(len(items) - _MAX_TILE_NAMES, 0),
         deep_link=deep_link,
+        icon=icon,
     )
 
 
 def _build_tiles(summary: HASummary, host: str) -> list[TileView]:
     base = _http_base_url(host)
     return [
-        _build_tile("Pending Updates", summary.pending_updates, base + _UPDATES_PATH),
-        _build_tile("Repair Issues", summary.repair_issues, base + _REPAIRS_PATH),
-        _build_tile("Integration Errors", summary.integration_errors, base + _INTEGRATIONS_PATH),
+        _build_tile("Pending Updates", summary.pending_updates, base + _UPDATES_PATH, icon="updates"),
+        _build_tile("Repair Issues", summary.repair_issues, base + _REPAIRS_PATH, icon="repairs"),
+        _build_tile(
+            "Integration Errors", summary.integration_errors, base + _INTEGRATIONS_PATH, icon="integrations"
+        ),
     ]
 
 

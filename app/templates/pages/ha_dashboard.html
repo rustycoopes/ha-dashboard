@@ -10,14 +10,41 @@
 {% endblock %}
 
 {% block page %}
-<div class="mx-auto max-w-2xl">
-  <h1 class="font-display text-2xl font-semibold text-ink dark:text-paper">HA Dashboard</h1>
+{#
+  Background texture: a faint connected-nodes mesh (drawn, not a photo) scoped to this page's own
+  content column only - see docs/adr/ha-dashboard-tailadmin-tile-redesign.md for why the
+  authenticated-shell "no photography" rule (DESIGN.md) still holds and this isn't an exception to
+  it, just a quiet color/shape texture reading as "connected devices".
+#}
+<div
+  class="relative mx-auto max-w-4xl"
+  style="background-image: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84'%3E%3Cg fill='none' stroke='%233f6fe0' stroke-width='1'%3E%3Cpath d='M0 42L84 42M42 0L42 84M0 0L84 84M84 0L0 84' stroke-opacity='0.07'/%3E%3C/g%3E%3Cg fill='%233f6fe0' fill-opacity='0.12'%3E%3Ccircle cx='42' cy='42' r='2.2'/%3E%3Ccircle cx='0' cy='0' r='2.2'/%3E%3Ccircle cx='84' cy='0' r='2.2'/%3E%3Ccircle cx='0' cy='84' r='2.2'/%3E%3Ccircle cx='84' cy='84' r='2.2'/%3E%3C/g%3E%3C/svg%3E&quot;); background-size: 84px 84px;"
+>
+  <div class="flex items-center gap-3.5">
+    {# Title mark: a drawn smart-home glyph (roofline + two signal arcs + amber hub dot), not an
+       imported photo - built from the platform's own cobalt/amber tokens only. #}
+    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" class="shrink-0" aria-hidden="true">
+      <rect x="1" y="1" width="38" height="38" rx="12" class="fill-cobalt-tint dark:fill-cobalt/20" />
+      <path d="M12 21.5 20 14l8 7.5" class="stroke-cobalt" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M14.5 20v7a1 1 0 0 0 1 1H24.5a1 1 0 0 0 1-1v-7" class="stroke-cobalt" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M23.5 12.5c1.6.2 3 1 4 2.2M25.6 10c2.3.3 4.3 1.5 5.7 3.2" class="stroke-cobalt" stroke-width="1.6" stroke-linecap="round" opacity="0.75" />
+      <circle cx="20" cy="24.5" r="1.6" class="fill-amber" />
+    </svg>
+    <div>
+      <p class="font-body text-xs font-semibold uppercase tracking-wide text-ink-2/70 dark:text-paper-2/70">Home Assistant</p>
+      <h1 class="font-display text-2xl font-bold text-ink dark:text-paper">HA Dashboard</h1>
+    </div>
+    {# Filled by an hx-swap-oob block in partials/ha_dashboard_tiles.html once the fragment below
+       loads; empty (and takes up no visible space) until then, and stays empty for the
+       not_configured/auth_failure/generic_failure states, which have no sync time to show. #}
+    <div id="ha-dashboard-sync-status" class="ml-auto"></div>
+  </div>
 
   {# Slice 4: GET /ha-dashboard returns instantly with this loading placeholder - the up-to-10s
      Home Assistant WebSocket fetch only ever happens behind this fragment request, never here. #}
   <div
     id="ha-dashboard-tiles"
-    class="mt-4"
+    class="mt-6"
     hx-get="/ha-dashboard/tiles"
     hx-trigger="load"
     hx-swap="innerHTML"
