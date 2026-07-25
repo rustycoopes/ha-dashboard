@@ -50,8 +50,9 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 # path the URL map doesn't explicitly route - the bare /static/* mount above was never reachable
 # via the shared domain (only this app's own direct Cloud Run URL). This second mount, at
 # static_mount_path("ha-dashboard"), is what the LB's new per-app path rule (organize-me#255) and
-# chrome_base.html's CHROME_STATIC_PREFIX Jinja global (set by register_chrome() below) both
-# target. Kept alongside the bare mount for one release per
+# chrome_base.html's CHROME_STATIC_PREFIX Jinja global (set by
+# register_chrome(app_service_name="ha-dashboard"), app/core/templating.py) both target. Kept
+# alongside the bare mount for one release per
 # docs/adr/static-asset-routing-mount-transition.md (a stale browser tab from before this deploy
 # may still request the old bare path) - removing the bare mount is a documented fast-follow, not
 # part of this change.
