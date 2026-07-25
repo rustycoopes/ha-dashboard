@@ -31,7 +31,7 @@ Home Assistant isn't connected yet. <a href="/settings" class="underline hover:n
 <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
   {% for tile in tiles %}
   <div
-    class="rounded-lg border p-4 shadow-sm {{ 'border-sage/30 bg-sage-tint dark:border-sage/40 dark:bg-sage/10' if tile.count == 0 else 'border-ink-2/10 bg-paper dark:border-paper/10 dark:bg-ink-2' }}"
+    class="rounded-2xl border p-4 shadow-sm {{ 'border-sage/30 bg-sage-tint dark:border-sage/40 dark:bg-sage/10' if tile.count == 0 else 'border-ink-2/10 bg-paper dark:border-paper/10 dark:bg-ink-2' }}"
   >
     <h2 class="font-display text-lg font-semibold text-ink dark:text-paper">{{ tile.title }}</h2>
 
