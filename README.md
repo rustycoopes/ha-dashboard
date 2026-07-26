@@ -31,6 +31,13 @@ uv run python scripts/build_css.py --watch # recompiles on template/CSS changes
 uv run uvicorn app.main:app --reload --port 8000
 ```
 
+To run ha-dashboard alongside the Host and its other hosted apps (shared local Caddy proxy,
+single login, real registry-synced cross-app nav) instead of standalone, see `organize-me`'s
+["Local development"](https://github.com/rustycoopes/organize-me/blob/main/docs/local-development.md)
+doc — run `uv run python scripts/local_dev.py --apps ha-dashboard` from `organize-me` with this
+repo checked out as a sibling (or point `HA_DASHBOARD_REPO_PATH` at an alternate checkout, e.g. a
+git worktree).
+
 ## Tests
 
 ```

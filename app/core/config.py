@@ -23,6 +23,15 @@ class Settings(BaseSettings):
     registry_host_url: str = ""
     registry_refresh_interval_seconds: float = 60
     registry_fetch_timeout_seconds: float = 5
+    # local-dev-environment Slice 7 (organize-me/ha-dashboard#18): set only by organize-me's
+    # local-dev launcher (as REGISTRY_LOCAL_DEV_BYPASS), for its own subprocess, never by a
+    # developer's own .env.local. The launcher separately points registry_host_url at the Host's
+    # local port (as REGISTRY_HOST_URL) for the same subprocess; when this flag is true,
+    # app/core/registry.py's _refresh_loop selects a placeholder token provider instead of the
+    # real OIDC one - mirroring how registry_host_url already bypasses the real Load Balancer in
+    # QA/prod for the same server-to-server call. See
+    # docs/adr/local-dev-environment-registry-sync-auth-bypass.md (organize-me).
+    registry_local_dev_bypass: bool = False
 
     # Fernet key used to encrypt the stored HA long-lived access token at rest (see
     # app.core.security) - the platform's existing shared `encryption-key-prod` Secret Manager
