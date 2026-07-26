@@ -30,6 +30,7 @@ from organizeme_chrome.registry import AppEntry, AppNavItem, SettingsTab
 from organizeme_chrome.registry_client import (
     FetchedRegistrySource,
     build_default_token_provider,
+    build_local_dev_token_provider,
     fetch_registry_once,
 )
 
@@ -50,7 +51,13 @@ async def _refresh_loop(
     client: httpx.AsyncClient,
     settings: Settings,
 ) -> None:
-    token_provider = build_default_token_provider(settings.registry_host_url)
+    # local-dev-environment Slice 7 (organize-me/ha-dashboard#18): registry_local_dev_bypass is
+    # only ever true when organize-me's local-dev launcher set it as a subprocess env var for this
+    # process - see docs/adr/local-dev-environment-registry-sync-auth-bypass.md (organize-me).
+    if settings.registry_local_dev_bypass:
+        token_provider = build_local_dev_token_provider()
+    else:
+        token_provider = build_default_token_provider(settings.registry_host_url)
     fresh_since: str | None = None
     while True:
         try:
