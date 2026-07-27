@@ -4,39 +4,13 @@ live Home Assistant instance/token is involved.
 """
 
 import asyncio
-from collections.abc import Sequence
 from types import TracebackType
 from typing import Any
 
 import pytest
 
 from app.schemas.ha_summary import IntegrationError, RepairIssue, UpdateItem
-from app.services.ha_client import HAAuthError, HAConnectionError, HAWebSocketClient
-
-
-class FakeHATransport:
-    """Plays back a fixed script of `recv()` responses; records every `send()` call."""
-
-    def __init__(self, scripted_recvs: Sequence[dict[str, Any]]) -> None:
-        self._recvs = iter(scripted_recvs)
-        self.sent: list[dict[str, Any]] = []
-
-    async def __aenter__(self) -> "FakeHATransport":
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> None:
-        return None
-
-    async def send(self, message: dict[str, Any]) -> None:
-        self.sent.append(message)
-
-    async def recv(self) -> dict[str, Any]:
-        return next(self._recvs)
+from app.services.ha_client import FakeHATransport, HAAuthError, HAConnectionError, HAWebSocketClient
 
 
 class HangingHATransport:

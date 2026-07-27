@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     # (app.services.ha_client), enforced app-side via asyncio.wait_for rather than left to Cloud
     # Run's own request timeout - see the TDD's "HA WebSocket client" section.
     ha_fetch_timeout_seconds: float = 10
+    # local-dev-environment Slice 8 (organize-me/ha-dashboard#19): set by a developer's own
+    # .env.local (never by the deploy pipeline) to render dashboard tiles from FakeHATransport's
+    # canned data instead of connecting to a real Home Assistant instance - see
+    # app.services.ha_client.factory.build_ha_transport_factory and
+    # docs/adr/local-dev-environment-mock-integrations-flag.md (organize-me). Defaults false so
+    # deploys/CI and every developer who hasn't opted in keep exercising the real transport.
+    mock_integrations: bool = False
 
     # Add app-specific settings below as they're needed (third-party API keys, feature flags,
     # etc.) — follow the empty-default-with-a-clear-runtime-error pattern used across the other

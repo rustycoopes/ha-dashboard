@@ -10,6 +10,7 @@ from typing import Any
 from app.core.config import get_settings
 from app.schemas.ha_summary import HASummary, IntegrationError, RepairIssue, UpdateItem
 from app.services.ha_client.errors import HAAuthError, HAConnectionError
+from app.services.ha_client.factory import build_ha_transport_factory
 from app.services.ha_client.transport import HATransport, HATransportFactory, WebSocketsHATransport
 
 _ERROR_CONFIG_ENTRY_STATES = frozenset(
@@ -103,12 +104,19 @@ class HAWebSocketClient:
 
 
 def get_ha_client() -> HAWebSocketClient:
-    """FastAPI dependency yielding the real, `websockets`-backed client.
+    """FastAPI dependency yielding the `websockets`-backed client, or one built on
+    `FakeHATransport` when `settings.mock_integrations` is set (local-dev-environment Slice 8) -
+    see `app.services.ha_client.factory.build_ha_transport_factory`.
 
-    Route tests override this via `app.dependency_overrides` with a client built on a scripted
-    `FakeHATransport` instead - see tests/test_ha_credential_settings.py.
+    Route tests override this dependency directly with a fake `HAWebSocketClient` - see
+    tests/conftest.py's `override_ha_client`. tests/test_ha_client.py separately unit-tests this
+    class against a scripted `FakeHATransport`.
     """
-    return HAWebSocketClient(timeout_seconds=get_settings().ha_fetch_timeout_seconds)
+    settings = get_settings()
+    return HAWebSocketClient(
+        transport_factory=build_ha_transport_factory(settings),
+        timeout_seconds=settings.ha_fetch_timeout_seconds,
+    )
 
 
 def _parse_pending_updates(states: Any) -> list[UpdateItem]:
