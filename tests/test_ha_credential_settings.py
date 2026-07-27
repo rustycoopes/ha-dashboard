@@ -77,6 +77,26 @@ async def test_test_connection_success_does_not_persist_anything(
     assert rows == []
 
 
+async def test_test_connection_rejects_a_non_connectable_scheme_without_calling_ha_client(
+    client: AsyncClient, make_token: type[TokenFactory], db_session: AsyncSession
+) -> None:
+    user_id = await create_host_user(db_session)
+    token = make_token.valid(sub=str(user_id))
+    client.cookies.set("organizeme_auth", token)
+    # No _override_ha_client() override registered - if the schema validator let this through,
+    # the route would hit the unconfigured real HAWebSocketClient dependency and error, not render
+    # this message. Regression check for ha-dashboard#9.
+
+    response = await client.post(
+        "/settings/ha-dashboard/ha-dashboard/test-connection",
+        data={"ha_host_url": "javascript://alert(1)", "token": "some-token"},
+    )
+
+    assert response.status_code == 200
+    assert "must be a valid" in response.text
+    assert "required" not in response.text
+
+
 async def test_test_connection_auth_failure_shows_the_auth_failure_message(
     client: AsyncClient, make_token: type[TokenFactory], db_session: AsyncSession
 ) -> None:
@@ -167,6 +187,30 @@ async def test_saving_again_overwrites_the_same_row_never_a_second(
     assert rows[0].id == first_id
     assert rows[0].ha_host_url == "https://second.example.com"
     assert rows[0].updated_at != first_updated_at
+
+
+async def test_save_rejects_a_non_connectable_scheme_and_persists_nothing(
+    client: AsyncClient, make_token: type[TokenFactory], db_session: AsyncSession
+) -> None:
+    user_id = await create_host_user(db_session)
+    token = make_token.valid(sub=str(user_id))
+    client.cookies.set("organizeme_auth", token)
+    # No _override_ha_client() override registered - same regression check as the test-connection
+    # equivalent above: this must be rejected before ever reaching the HA client.
+
+    response = await client.post(
+        "/settings/ha-dashboard/ha-dashboard",
+        data={"ha_host_url": "//attacker.example", "token": "some-token"},
+    )
+
+    assert response.status_code == 200
+    assert "must be a valid" in response.text
+    rows = (
+        (await db_session.execute(select(HACredential).where(HACredential.user_id == user_id)))
+        .scalars()
+        .all()
+    )
+    assert rows == []
 
 
 async def test_save_failure_persists_nothing_and_shows_the_error(

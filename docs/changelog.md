@@ -23,3 +23,7 @@
 ### Changed
 - 2026-07-25 — TailAdmin-style tile redesign (icon chips, bigger numbers, lifted shadow, drawn
   background texture and title mark, live sync pill) — [details](adr/ha-dashboard-tailadmin-tile-redesign.md)
+
+### Fixed
+- 2026-07-27 — #9 Slice 4 follow-ups: `ha_host_url` scheme validation + `State` typing consistency
+  — [details](https://github.com/rustycoopes/ha-dashboard/issues/9)
