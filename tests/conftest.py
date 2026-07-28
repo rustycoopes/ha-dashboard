@@ -201,6 +201,21 @@ async def client(db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
         app.dependency_overrides.clear()
 
 
+@pytest_asyncio.fixture
+async def no_db_client() -> AsyncIterator[AsyncClient]:
+    """httpx client for endpoint tests that never touch the database.
+
+    Unlike `client`, this does not depend on `db_session` or override `get_db` - routes exercised
+    through this fixture must not query the database. Use for static/health-check-style tests
+    (ha-dashboard#17) so they can run without a reachable Postgres.
+    """
+    from app.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+        yield ac
+
+
 class FakeHAWebSocketClient:
     """Duck-types `HAWebSocketClient`'s one entry point - overridden in via FastAPI's
     `dependency_overrides`, same pattern as this platform's other hosted-app fakes. Shared by
