@@ -16,24 +16,24 @@ def test_both_static_mounts_are_registered() -> None:
     assert any(path.startswith(static_mount_path("ha-dashboard")) for path in mounted_paths)
 
 
-async def test_prefixed_mount_serves_real_content(client: AsyncClient) -> None:
+async def test_prefixed_mount_serves_real_content(no_db_client: AsyncClient) -> None:
     path = app.url_path_for("static-prefixed", path="css/app.css")
     assert path == f"{static_mount_path('ha-dashboard')}/css/app.css"
 
-    response = await client.get(path)
+    response = await no_db_client.get(path)
 
     assert response.status_code == 200
     assert len(response.content) > 0
 
 
 async def test_bare_mount_still_serves_the_same_content_during_the_transition(
-    client: AsyncClient,
+    no_db_client: AsyncClient,
 ) -> None:
     bare_path = app.url_path_for("static", path="css/app.css")
     prefixed_path = app.url_path_for("static-prefixed", path="css/app.css")
 
-    bare_response = await client.get(bare_path)
-    prefixed_response = await client.get(prefixed_path)
+    bare_response = await no_db_client.get(bare_path)
+    prefixed_response = await no_db_client.get(prefixed_path)
 
     assert bare_response.status_code == 200
     assert bare_response.content == prefixed_response.content
