@@ -132,4 +132,18 @@ zero-count "all clear" styling are decided in `_build_tile`/the template, matchi
   the new route's `Literal[...]` state type versus `settings_fragments.py`'s existing plain-`str`
   convention for the same kind of outcome value.
 
+**Follow-up (issue [#9](https://github.com/rustycoopes/ha-dashboard/issues/9), branch
+`fix/slice4-scheme-validation-and-state-typing`, 2026-07-27):** both of the above were resolved.
+`_HostAndTokenForm` (`app/schemas/ha_credential.py`) gained a `_require_connectable_scheme`
+validator - reusing `normalize_host_url`'s scheme-defaulting - that rejects any `ha_host_url` whose
+resolved scheme isn't `http`/`https`/`ws`/`wss` or whose resolved authority is empty (e.g.
+`javascript://alert(1)`, `//attacker.example`), while still accepting a bare local hostname.
+`settings_fragments.py`'s `_run_test` return type is now `TestOutcome = Literal["success",
+"auth_failure", "generic_failure"]`, matching `ha_dashboard_tiles.py`'s `State` pattern (kept as a
+separate alias, not unified, since `State` has a fourth `"not_configured"` value a test/save
+outcome can never produce). Code review also caught that the new bad-scheme rejection was falling
+into the same "Host and token are required." copy as a blank field, which is misleading for a
+non-blank-but-invalid host - fixed via a shared `_validation_error_message` helper, with new
+endpoint-level tests confirming the HA client is never invoked when the host is rejected up front.
+
 <!-- /to-implementation appends a "## Delivered" section here once this slice ships. -->

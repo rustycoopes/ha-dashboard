@@ -14,6 +14,7 @@ something meant to be swapped into a tab panel.
 
 import uuid
 from datetime import UTC, datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
@@ -35,6 +36,16 @@ def _reauth_required(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request, "partials/settings_reauth_required.html", {})
 
 
+def _validation_error_message(exc: ValidationError) -> str:
+    """`_HostAndTokenForm` fails validation two distinct ways - a blank field, or a non-blank
+    `ha_host_url` with a rejected scheme (`_require_connectable_scheme`) - and the two need
+    different copy; a bad-scheme host isn't "required", it's present but invalid.
+    """
+    if any("must not be blank" in err["msg"] for err in exc.errors()):
+        return "Host and token are required."
+    return "Host must be a valid http(s) or ws(s) URL."
+
+
 async def _read_model(db: AsyncSession, user_id: uuid.UUID) -> HACredentialRead:
     credential = await get_ha_credential(db, user_id)
     if credential is None:
@@ -47,14 +58,15 @@ async def _read_model(db: AsyncSession, user_id: uuid.UUID) -> HACredentialRead:
     )
 
 
-async def _run_test(ha_client: HAWebSocketClient, host: str, token: str) -> str:
+TestOutcome = Literal["success", "auth_failure", "generic_failure"]
+
+
+async def _run_test(ha_client: HAWebSocketClient, host: str, token: str) -> TestOutcome:
     """Runs the client's full fetch against the given (possibly unsaved) host/token, persisting
     nothing. Test Connection and Save both call this - Test Connection deliberately reuses the
     exact same full fetch the dashboard tiles use, not just the auth handshake, per the TDD's
     "deliberate deviation from the PRD's literal wording" (a non-admin token would otherwise pass
     Test Connection and only fail later on the dashboard tiles).
-
-    Returns one of "success" / "auth_failure" / "generic_failure".
     """
     try:
         await ha_client.fetch_dashboard_summary(host, token)
@@ -92,9 +104,11 @@ async def test_connection_fragment(
 
     try:
         payload = TestConnectionRequest(ha_host_url=ha_host_url, token=token)
-    except ValidationError:
+    except ValidationError as exc:
         return templates.TemplateResponse(
-            request, "partials/ha_dashboard_test_connection_result.html", {"outcome": "invalid"}
+            request,
+            "partials/ha_dashboard_test_connection_result.html",
+            {"outcome": "invalid", "invalid_message": _validation_error_message(exc)},
         )
 
     outcome = await _run_test(ha_client, payload.ha_host_url, payload.token)
@@ -117,12 +131,12 @@ async def save_ha_credential_fragment(
 
     try:
         payload = HACredentialWrite(ha_host_url=ha_host_url, token=token)
-    except ValidationError:
+    except ValidationError as exc:
         credential = await _read_model(db, user_id)
         return templates.TemplateResponse(
             request,
             "partials/settings_ha_dashboard.html",
-            {"credential": credential, "save_error": "Host and token are required."},
+            {"credential": credential, "save_error": _validation_error_message(exc)},
         )
 
     # Independently re-validates rather than trusting a prior "Test Connection succeeded" result

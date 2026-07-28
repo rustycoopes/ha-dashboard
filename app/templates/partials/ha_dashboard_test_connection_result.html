@@ -4,8 +4,10 @@
   Connection or a real Save always re-validates from scratch (settings_fragments.py's
   module docstring).
 
-  outcome is one of "success" / "auth_failure" / "generic_failure" / "invalid" (blank
-  host/token submitted) - see app.pages.settings_fragments._run_test.
+  outcome is one of "success" / "auth_failure" / "generic_failure" / "invalid" (a blank
+  field, or a non-blank host with a rejected scheme - see
+  app.pages.settings_fragments._validation_error_message) - see
+  app.pages.settings_fragments._run_test.
 #}
 {% from "components/alert.html" import alert %}
 {% if outcome == "success" %}
@@ -13,7 +15,7 @@
 {% elif outcome == "auth_failure" %}
 {{ alert("Home Assistant rejected the token.", variant="danger") }}
 {% elif outcome == "invalid" %}
-{{ alert("Host and token are required.", variant="danger") }}
+{{ alert(invalid_message, variant="danger") }}
 {% else %}
 {{ alert("Could not connect to Home Assistant. Check the host URL and try again.", variant="danger") }}
 {% endif %}
